@@ -69,7 +69,9 @@ async def handle_download_song(update: Update, context: ContextTypes.DEFAULT_TYP
             track = tracks[track_index]
             track_name = track['name']
             artist_name = track['artists'][0]['name']
-            song_url = track['external_urls']['spotify']
+            # Anda perlu mendapatkan URL yang valid untuk mendownload
+            # Misalnya, Anda bisa menggunakan URL YouTube atau sumber lain
+            youtube_url = "URL_YOUTUBE_LAGU"  # Ganti dengan URL YouTube yang valid
 
             # Menggunakan youtube_dl untuk mendownload lagu
             ydl_opts = {
@@ -82,10 +84,8 @@ async def handle_download_song(update: Update, context: ContextTypes.DEFAULT_TYP
                 'outtmpl': f'Saitama_{track_name}.mp3',
             }
 
-            # Ganti dengan URL yang sesuai untuk mendownload
-            # Anda mungkin perlu menggunakan API lain untuk mendapatkan URL download yang valid
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([song_url])  # Ganti dengan URL yang sesuai
+                ydl.download([youtube_url])  # Ganti dengan URL yang sesuai
 
             # Kirim file ke pengguna
             with open(f'Saitama_{track_name}.mp3', 'rb') as audio_file:
