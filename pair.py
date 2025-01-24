@@ -23,13 +23,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Selamat datang di Bot AI Gratis! Pilih menu di bawah:", reply_markup=reply_markup
     )
 
-# Buat QR Code
+# Create QR Code
 async def create_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     button = InlineKeyboardButton("Pratinjau Link", url="https://klg06i.mimo.run/index.html")
     markup = InlineKeyboardMarkup([[button]])
     await update.message.reply_text("Berikut adalah link Anda:", reply_markup=markup)
 
-# Baca QR Code
+# Read QR Code
 async def read_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Kirimkan gambar QR Code yang ingin dibaca.")
     context.user_data['mode'] = 'read_qr'
@@ -54,7 +54,7 @@ async def handle_photo_for_qr(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("Tidak dapat membaca QR Code.")
         context.user_data['mode'] = None
 
-# Tentang Bot
+# About Bot
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Bot ini memiliki fitur berikut:\n"
@@ -65,7 +65,7 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Semua fitur ini gratis!"
     )
 
-# Cari lagu di Spotify
+# Search for songs on Spotify
 async def search_spotify(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Kirimkan nama lagu yang ingin Anda cari di Spotify.")
     context.user_data['mode'] = 'search_spotify'
@@ -100,7 +100,7 @@ async def handle_song_search(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             await update.message.reply_text("Maaf, lagu tidak ditemukan.")
 
-# Cari lagu di YouTube
+# Search for songs on YouTube
 async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.user_data.get('mode') == 'youtube_search':
         try:
@@ -166,6 +166,7 @@ def main():
     bot_token = "7902619636:AAE0u4BvVuq7VFNKHfUYr4KrluDmW17vxoA"  # Ganti dengan token bot Anda
     application = ApplicationBuilder().token(bot_token).build()
 
+    # Adding handlers for different commands and messages
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.Regex("^🎶 Cari Lagu Spotify$"), search_spotify))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_song_search))
