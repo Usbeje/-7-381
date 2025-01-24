@@ -3,28 +3,69 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from yt_dlp import YoutubeDL
-import requests
-from bs4 import BeautifulSoup
-import qrcode
 from io import BytesIO
+import qrcode
 import cv2
 import numpy as np
+import requests
+from bs4 import BeautifulSoup
 
-# Set up Spotify API client
+# Spotify API setup
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id="5f06ca4ab67a412db2f5700dab170d8f", client_secret="a06ba618a97243dbb60c9ef34ff4f139"))
 
-# Fungsi untuk memulai bot
+# Start bot function
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        ["🎶 Cari Lagu Spotify", "🔍 Baca QR Code", "➕ Buat QR Code", "❓ Tentang Bot"],
+        ["🎶 Cari Lagu Spotify", "🔍 Baca QR Code", "➕ Buat QR Code", "❓ Tentang Bot"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "Selamat datang di Bot AI Gratis! Pilih menu di bawah:",
-        reply_markup=reply_markup,
+        "Selamat datang di Bot AI Gratis! Pilih menu di bawah:", reply_markup=reply_markup
     )
 
-# Fungsi untuk mencari lagu di Spotify
+# Buat QR Code
+async def create_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    button = InlineKeyboardButton("Pratinjau Link", url="https://klg06i.mimo.run/index.html")
+    markup = InlineKeyboardMarkup([[button]])
+    await update.message.reply_text("Berikut adalah link Anda:", reply_markup=markup)
+
+# Baca QR Code
+async def read_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Kirimkan gambar QR Code yang ingin dibaca.")
+    context.user_data['mode'] = 'read_qr'
+
+async def handle_photo_for_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.user_data.get('mode') == 'read_qr':
+        photo = update.message.photo[-1]
+        file = await photo.get_file()
+        file_path = BytesIO()
+        await file.download_to_memory(file_path)
+
+        # Decode QR Code
+        file_path.seek(0)
+        file_array = np.asarray(bytearray(file_path.read()), dtype=np.uint8)
+        image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
+        detector = cv2.QRCodeDetector()
+        data, _, _ = detector.detectAndDecode(image)
+
+        if data:
+            await update.message.reply_text(f"Isi QR Code: {data}")
+        else:
+            await update.message.reply_text("Tidak dapat membaca QR Code.")
+        context.user_data['mode'] = None
+
+# Tentang Bot
+async def about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "Bot ini memiliki fitur berikut:\n"
+        "- 🎶 Cari dan download lagu di Spotify\n"
+        "- 🔍 Membaca QR Code\n"
+        "- ➕ Membuat QR Code\n"
+        "- ❓ Informasi tentang bot\n\n"
+        "Semua fitur ini gratis!"
+    )
+
+# Cari lagu di Spotify
 async def search_spotify(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Kirimkan nama lagu yang ingin Anda cari di Spotify.")
     context.user_data['mode'] = 'search_spotify'
@@ -52,7 +93,6 @@ async def handle_song_search(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     f"   Pengikut: {followers}\n"
                     f"   Link Spotify: {url}\n\n"
                 )
-
             await update.message.reply_text(reply_text)
             await update.message.reply_text("Kirimkan nomor lagu yang ingin Anda cari di YouTube (1-5).")
             context.user_data['tracks'] = tracks
@@ -60,6 +100,7 @@ async def handle_song_search(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             await update.message.reply_text("Maaf, lagu tidak ditemukan.")
 
+# Cari lagu di YouTube
 async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.user_data.get('mode') == 'youtube_search':
         try:
@@ -75,7 +116,6 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
             )
             context.user_data['track_info'] = f"{track_name} {artist_name}"
             context.user_data['mode'] = 'youtube_download'
-
         except (IndexError, ValueError):
             await update.message.reply_text("Nomor yang Anda masukkan tidak valid. Silakan coba lagi.")
 
@@ -108,7 +148,6 @@ async def handle_youtube_download(update: Update, context: ContextTypes.DEFAULT_
                 await update.message.reply_text(f"Gagal mendownload lagu: {e}")
         else:
             await update.message.reply_text("Maaf, tidak dapat menemukan URL YouTube.")
-
         context.user_data['mode'] = None
 
 def search_youtube(query):
@@ -120,46 +159,9 @@ def search_youtube(query):
     for result in results:
         if '/watch?' in result['href']:
             return f"https://www.youtube.com{result['href']}"
-
     return None
 
-# Fungsi untuk membuat QR Code
-async def create_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    button = InlineKeyboardButton("Pratinjau Link", url="https://example.com")
-    markup = InlineKeyboardMarkup([[button]])
-    await update.message.reply_text("Berikut adalah link Anda:", reply_markup=markup)
-
-# Fungsi untuk membaca QR Code
-async def read_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Kirimkan gambar QR Code yang ingin dibaca.")
-    context.user_data['mode'] = 'read_qr'
-
-async def handle_photo_for_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if context.user_data.get('mode') == 'read_qr':
-        photo = update.message.photo[-1]
-        file = await photo.get_file()
-        file_path = BytesIO()
-        await file.download_to_memory(file_path)
-
-        # Membaca QR Code menggunakan OpenCV
-        file_path.seek(0)
-        file_array = np.asarray(bytearray(file_path.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
-        detector = cv2.QRCodeDetector()
-        data, _, _ = detector.detectAndDecode(image)
-
-        if data:
-            await update.message.reply_text(f"Isi QR Code: {data}")
-        else:
-            await update.message.reply_text("Tidak dapat membaca QR Code.")
-
-        context.user_data['mode'] = None
-
-# Fungsi tentang bot
-async def about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Bot ini adalah bot multi-fungsi gratis.")
-
-# Fungsi utama untuk menjalankan bot
+# Main function
 def main():
     bot_token = "7902619636:AAE0u4BvVuq7VFNKHfUYr4KrluDmW17vxoA"  # Ganti dengan token bot Anda
     application = ApplicationBuilder().token(bot_token).build()
@@ -172,7 +174,7 @@ def main():
     application.add_handler(MessageHandler(filters.Regex("^➕ Buat QR Code$"), create_qr))
     application.add_handler(MessageHandler(filters.Regex("^🔍 Baca QR Code$"), read_qr))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo_for_qr))
-    application.add_handler(CommandHandler("about", about))
+    application.add_handler(MessageHandler(filters.Regex("^❓ Tentang Bot$"), about))
 
     print("Bot is running...")
     application.run_polling()
