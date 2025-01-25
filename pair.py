@@ -24,28 +24,31 @@ async def read_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def handle_photo_for_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.user_data.get('mode') == 'read_qr':
-        photo = update.message.photo[-1]
-        file = await photo.get_file()
-        file_path = BytesIO()
-        await file.download_to_memory(file_path)
+        try:
+            photo = update.message.photo[-1]
+            file = await photo.get_file()
+            file_path = BytesIO()
+            await file.download_to_memory(file_path)
 
-        # Membaca QR Code menggunakan OpenCV
-        file_path.seek(0)
-        file_array = np.asarray(bytearray(file_path.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
-        detector = cv2.QRCodeDetector()
-        data, _, _ = detector.detectAndDecode(image)
+            # Membaca QR Code menggunakan OpenCV
+            file_path.seek(0)
+            file_array = np.asarray(bytearray(file_path.read()), dtype=np.uint8)
+            image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
+            detector = cv2.QRCodeDetector()
+            data, _, _ = detector.detectAndDecode(image)
 
-        if data:
-            await update.message.reply_text(f"Isi QR Code: {data}")
-        else:
-            await update.message.reply_text("Tidak dapat membaca QR Code.")
+            if data:
+                await update.message.reply_text(f"Isi QR Code: {data}")
+            else:
+                await update.message.reply_text("Tidak dapat membaca QR Code.")
+        except Exception as e:
+            await update.message.reply_text(f"Terjadi kesalahan: {e}")
 
         context.user_data['mode'] = None
 
 # Fungsi untuk mencari lagu di YouTube
 async def search_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Silahkan masukkan judul lagu dan artis, contoh: 'nama lagu - nama artis'")
+    await update.message.reply_text("Silahkan masukkan judul lagu dan artis, contoh: 'Cars Outside - James Arthur'")
     context.user_data['mode'] = 'youtube_search'
 
 async def handle_song_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -65,7 +68,7 @@ async def handle_song_search(update: Update, context: ContextTypes.DEFAULT_TYPE)
             context.user_data['youtube_url'] = url
             context.user_data['mode'] = 'youtube_download'
         else:
-            await update.message.reply_text("Maaf, lagu tidak ditemukan.")
+            await update.message.reply_text("Maaf, lagu tidak ditemukan. Pastikan penulisan benar.")
 
 async def handle_youtube_download(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.user_data.get('mode') == 'youtube_download':
@@ -102,18 +105,20 @@ async def handle_youtube_download(update: Update, context: ContextTypes.DEFAULT_
 
 # Fungsi untuk mendapatkan data YouTube
 def get_youtube_data(query):
-    search_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
-    response = requests.get(search_url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    results = soup.find_all('a', href=True, title=True)
+    try:
+        search_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+        response = requests.get(search_url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        results = soup.find_all('a', href=True, title=True)
 
-    for result in results:
-        if '/watch?' in result['href']:
-            title = result['title']
-            url = f"https://www.youtube.com{result['href']}"
-            views = "Tidak diketahui"  # Bisa diperluas dengan scraping jumlah tayangan
-            return title, views, url
-
+        for result in results:
+            if '/watch?' in result['href']:
+                title = result['title']
+                url = f"https://www.youtube.com{result['href']}"
+                views = "Tidak diketahui"  # Bisa diperluas dengan scraping jumlah tayangan
+                return title, views, url
+    except Exception as e:
+        print(f"Error saat mengambil data YouTube: {e}")
     return None
 
 # Fungsi untuk menampilkan informasi tentang bot
@@ -136,6 +141,7 @@ def main():
     application.add_handler(MessageHandler(filters.Regex("^🎶 Cari Lagu$"), search_youtube))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_song_search))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_youtube_download))
+    application.add_handler(CommandHandler("about", about))
 
     print("Bot is running...")
     application.run_polling()
