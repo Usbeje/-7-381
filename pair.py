@@ -1,35 +1,30 @@
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
+import cv2
+import numpy as np
+from io import BytesIO
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from yt_dlp import YoutubeDL
-from io import BytesIO
-import qrcode
-import cv2
-import numpy as np
 import requests
 from bs4 import BeautifulSoup
 
-# Spotify API setup
-sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id="5f06ca4ab67a412db2f5700dab170d8f", client_secret="a06ba618a97243dbb60c9ef34ff4f139"))
-
-# Start bot function
+# Fungsi untuk memulai bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        ["🎶 Cari Lagu Spotify", "🔍 Baca QR Code", "➕ Buat QR Code", "❓ Tentang Bot"]
+        ["🔍 Cari Lagu Spotify", "🔍 Baca QR Code", "➕ Buat QR Code", "❓ Tentang Bot"],
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "Selamat datang di Bot AI Gratis! Pilih menu di bawah:", reply_markup=reply_markup
+        "Selamat datang di Bot AI Gratis! Pilih menu di bawah:",
+        reply_markup=reply_markup,
     )
 
-# Create QR Code
+# Fungsi untuk membuat QR Code
 async def create_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    button = InlineKeyboardButton("Pratinjau Link", url="https://klg06i.mimo.run/index.html")
-    markup = InlineKeyboardMarkup([[button]])
-    await update.message.reply_text("Berikut adalah link Anda:", reply_markup=markup)
+    await update.message.reply_text(
+        'Silahkan pratinjau web saya "https://klg06i.mimo.run/index.html"',
+    )
 
-# Read QR Code
+# Fungsi untuk membaca QR Code menggunakan OpenCV
 async def read_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Kirimkan gambar QR Code yang ingin dibaca.")
     context.user_data['mode'] = 'read_qr'
@@ -41,7 +36,7 @@ async def handle_photo_for_qr(update: Update, context: ContextTypes.DEFAULT_TYPE
         file_path = BytesIO()
         await file.download_to_memory(file_path)
 
-        # Decode QR Code
+        # Membaca QR Code menggunakan OpenCV
         file_path.seek(0)
         file_array = np.asarray(bytearray(file_path.read()), dtype=np.uint8)
         image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
@@ -52,82 +47,46 @@ async def handle_photo_for_qr(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text(f"Isi QR Code: {data}")
         else:
             await update.message.reply_text("Tidak dapat membaca QR Code.")
+
         context.user_data['mode'] = None
 
-# About Bot
-async def about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# Fungsi untuk mencari lagu di YouTube
+async def search_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Bot ini memiliki fitur berikut:\n"
-        "- 🎶 Cari dan download lagu di Spotify\n"
-        "- 🔍 Membaca QR Code\n"
-        "- ➕ Membuat QR Code\n"
-        "- ❓ Informasi tentang bot\n\n"
-        "Semua fitur ini gratis!"
+        "Ketik nama dan artis lagu seperti ini: 'nama lagu - nama artis'."
     )
+    context.user_data['mode'] = 'search_youtube'
 
-# Search for songs on Spotify
-async def search_spotify(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Kirimkan nama lagu yang ingin Anda cari di Spotify.")
-    context.user_data['mode'] = 'search_spotify'
-
+# Fungsi untuk menangani pencarian lagu di YouTube
 async def handle_song_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if context.user_data.get('mode') == 'search_spotify':
-        song_name = update.message.text
-        results = sp.search(q=song_name, limit=5, type="track")
-        tracks = results['tracks']['items']
+    if context.user_data.get('mode') == 'search_youtube':
+        search_query = update.message.text
+        youtube_data = fetch_youtube_data(search_query)
 
-        if tracks:
-            reply_text = "Hasil pencarian lagu:\n"
-            for index, track in enumerate(tracks):
-                track_name = track['name']
-                artist_name = track['artists'][0]['name']
-                release_date = track['album']['release_date']
-                popularity = track['popularity']
-                followers = sp.artist(track['artists'][0]['id'])['followers']['total']
-                url = track['external_urls']['spotify']
-
-                reply_text += (
-                    f"🎵 {index + 1}. {track_name} - {artist_name}\n"
-                    f"   Tanggal Rilis: {release_date}\n"
-                    f"   Popularitas: {popularity}\n"
-                    f"   Pengikut: {followers}\n"
-                    f"   Link Spotify: {url}\n\n"
-                )
+        if youtube_data:
+            context.user_data['youtube_url'] = youtube_data['url']
+            reply_text = (
+                f"🎵 Judul Lagu: {youtube_data['title']}\n"
+                f"🎤 Artis: {youtube_data['channel']}\n"
+                f"👀 Jumlah Tayangan: {youtube_data['views']}\n"
+                f"📅 Tanggal Rilis: {youtube_data['release_date']}\n"
+                f"🔗 URL: {youtube_data['url']}\n\n"
+                "Download lagu? (ya/tidak)"
+            )
             await update.message.reply_text(reply_text)
-            await update.message.reply_text("Kirimkan nomor lagu yang ingin Anda cari di YouTube (1-5).")
-            context.user_data['tracks'] = tracks
-            context.user_data['mode'] = 'youtube_search'
+            context.user_data['mode'] = 'download_youtube'
         else:
             await update.message.reply_text("Maaf, lagu tidak ditemukan.")
 
-# Search for songs on YouTube
-async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if context.user_data.get('mode') == 'youtube_search':
-        try:
-            track_index = int(update.message.text) - 1
-            tracks = context.user_data['tracks']
-            track = tracks[track_index]
-            track_name = track['name']
-            artist_name = track['artists'][0]['name']
+# Fungsi untuk mendownload lagu dari YouTube
+async def handle_download_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.user_data.get('mode') == 'download_youtube':
+        response = update.message.text.lower()
 
-            await update.message.reply_text(
-                f"Anda memilih lagu: {track_name} - {artist_name}\n"
-                "Silakan masukkan nama dan judul lagu untuk mencari di YouTube."
-            )
-            context.user_data['track_info'] = f"{track_name} {artist_name}"
-            context.user_data['mode'] = 'youtube_download'
-        except (IndexError, ValueError):
-            await update.message.reply_text("Nomor yang Anda masukkan tidak valid. Silakan coba lagi.")
-
-async def handle_youtube_download(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if context.user_data.get('mode') == 'youtube_download':
-        search_query = update.message.text
-        youtube_url = search_youtube(search_query)
-
-        if youtube_url:
-            await update.message.reply_text(f"URL YouTube ditemukan: {youtube_url}")
+        if response in ['ya', 'y', 'iya']:
+            youtube_url = context.user_data['youtube_url']
             await update.message.reply_text("Sedang mendownload lagu, mohon tunggu...")
-            file_name = f"{context.user_data['track_info']}.mp3"
+            file_name = "downloaded_song.mp3"
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'postprocessors': [{
@@ -143,39 +102,63 @@ async def handle_youtube_download(update: Update, context: ContextTypes.DEFAULT_
                     ydl.download([youtube_url])
 
                 with open(file_name, 'rb') as audio_file:
-                    await update.message.reply_audio(audio_file, caption=f"Lagu Anda: {context.user_data['track_info']}")
+                    await update.message.reply_audio(audio_file, caption="Lagu Anda telah selesai didownload!")
             except Exception as e:
                 await update.message.reply_text(f"Gagal mendownload lagu: {e}")
+        elif response in ['tidak', 't', 'no', 'n']:
+            await update.message.reply_text("Download dibatalkan.")
         else:
-            await update.message.reply_text("Maaf, tidak dapat menemukan URL YouTube.")
+            await update.message.reply_text("Respon tidak valid. Harap ketik 'ya' atau 'tidak'.")
+
         context.user_data['mode'] = None
 
-def search_youtube(query):
+# Fungsi untuk mencari data YouTube
+def fetch_youtube_data(query):
     search_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
     response = requests.get(search_url)
     soup = BeautifulSoup(response.text, 'html.parser')
-    results = soup.find_all('a', href=True)
+    results = soup.find_all('a', href=True, attrs={"title": True})
 
-    for result in results:
-        if '/watch?' in result['href']:
-            return f"https://www.youtube.com{result['href']}"
+    if results:
+        for result in results:
+            if '/watch?' in result['href']:
+                title = result['title']
+                url = f"https://www.youtube.com{result['href']}"
+                channel = "Channel tidak diketahui"
+                views = "Tidak tersedia"
+                release_date = "Tidak tersedia"
+                # Informasi tambahan bisa ditambahkan di sini
+                return {
+                    "title": title,
+                    "url": url,
+                    "channel": channel,
+                    "views": views,
+                    "release_date": release_date,
+                }
     return None
 
-# Main function
+# Fungsi untuk menampilkan informasi tentang bot
+async def about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "Bot ini adalah bot multi-fungsi gratis yang memungkinkan Anda untuk:\n"
+        "- 🔍 Mencari dan download lagu dari YouTube\n"
+        "- 🔍 Membaca QR Code\n"
+        "- ➕ Membuat QR Code\n\nSemua fitur ini sepenuhnya gratis!"
+    )
+
+# Fungsi utama untuk menjalankan bot
 def main():
-    bot_token = "7902619636:AAE0u4BvVuq7VFNKHfUYr4KrluDmW17vxoA"  # Ganti dengan token bot Anda
+    bot_token = "7244876078:AAFqabhDdpAQ7JwmEx7pxVyugoXrc7zLZXI"  # Ganti dengan token bot Anda
     application = ApplicationBuilder().token(bot_token).build()
 
-    # Adding handlers for different commands and messages
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.Regex("^🎶 Cari Lagu Spotify$"), search_spotify))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_song_search))
-    application.add_handler(MessageHandler(filters.Regex("^[1-5]$"), handle_youtube_search))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_youtube_download))
     application.add_handler(MessageHandler(filters.Regex("^➕ Buat QR Code$"), create_qr))
     application.add_handler(MessageHandler(filters.Regex("^🔍 Baca QR Code$"), read_qr))
+    application.add_handler(MessageHandler(filters.Regex("^🔍 Cari Lagu Spotify$"), search_youtube))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo_for_qr))
-    application.add_handler(MessageHandler(filters.Regex("^❓ Tentang Bot$"), about))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_song_search))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_download_request))
+    application.add_handler(CommandHandler("about", about))
 
     print("Bot is running...")
     application.run_polling()
