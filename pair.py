@@ -1,26 +1,24 @@
 import requests
 
-# Replace [ID] with the actual address ID you want to query
-address_id = "[0xD17479ad4946665379F19C67572af384A0C2a883]"
+# The Indodax address you want to check
+indodax_address = "0x[D17479ad4946665379F19C67572af384A0C2a883]"
 
-# URL for the Indodax API
-url = f"https://indodax.com/api/balance/{address_id}"
+# The Etherscan API key
+api_key = "YOUR_API_KEY"
 
-# Make the API request
+# The Etherscan API endpoint for resolving ENS names
+url = f"https://api.etherscan.io/api?module=account&action=txlist&address={indodax_address}&startblock=0&endblock=99999999&sort=asc&apikey={api_key}"
+
+# Send the API request
 response = requests.get(url)
 
-# Check if the request was successful
-if response.status_code == 200:
-    # Parse the JSON response
-    data = response.json()
-    
-    # Extract the balance information and address name
-    balance_data = data["balance"]
-    address_name = data["name"]
-    
-    # Print the balance information and address name
-    print(f"Balance Information for Address: {address_name}")
-    for currency, balance in balance_data.items():
-        print(f"{currency}: {balance}")
+# Parse the JSON response
+data = response.json()
+
+# Check if the response contains a result
+if "result" in data:
+    # Extract the identity name from the first transaction
+    identity_name = data["result"][0]["ens_name"]
+    print(f"Identity name for address {indodax_address} is: {identity_name}")
 else:
-    print("Failed to retrieve balance information.")
+    print(f"No identity name found for address {indodax_address}")
